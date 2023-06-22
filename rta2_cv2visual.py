@@ -219,7 +219,7 @@ def draw_gate_topleft():
 
 def display_video_info():
     cv2.putText(frame, "Controls - 'q': quit  'p': pause", (width-175, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (0, 0, 150), 1)
-    cv2.putText(frame, f"end timestamp: {t_end}ms", (10, height-20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 2)
+    cv2.putText(frame, f"end timestamp: t_end ms", (10, height-20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 2)
     text_str = f"Curr frame ts:{(t_rad-T_RAD_BEGIN)/1000:.3f}   Replay {1:.1f}x"
     cv2.putText(frame, text_str, (10, height-40), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 2)
     # find timestamps of sensors
@@ -238,15 +238,19 @@ def display_video_info():
     text_str = f"nPoints:  s1:{len(s1_pts):2d}, s2:{len(s2_pts):2d}"
     cv2.putText(frame, text_str, (10, height-60), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 2)
 
-s1 = StaticPoints(cnt_thres=1)
-s2 = StaticPoints(cnt_thres=1)
+s1_static = StaticPoints(cnt_thres=5)
+s2_static = StaticPoints(cnt_thres=5)
 
-all_increments = 0
+# display existing points when no new points are available
+s1_display_points_prev = []
+s2_display_points_prev = []
+
+incr = 1000/30   # increment, in ms
 # main loop
 while True:
     # Account for radar camera synchronization
-    incr = 1000/30   # increment, in ms
     ts_start = radar_data.timestamp[0] # initial timestamp of radar points at start of program
+    all_increments = 0
     while round(rad_cam_offset) > 0:
         all_increments += incr
         while radar_data.timestamp[0] < ts_start + all_increments:
@@ -276,39 +280,51 @@ while True:
             print("radar to wait for video (rad_cam_offset < 0)") 
     else:
         # take points in current RADAR frame
-        radar_frame = radar_data.take_next_frame(interval=1)
-        t_end = t_rad + 33    # ending timestamp, in ms
+        radar_frame = radar_data.take_next_frame(interval=incr)
+
+        #
+        s1_display_points = []
+        s2_display_points = []
         if not radar_frame.is_empty(target_sensor_id=1):
-            s1.update(radar_frame.get_points_for_display(sensor_id=1))
+            s1_static.update(radar_frame.get_points_for_display(sensor_id=1))
+            radar_frame.set_static_points(s1_static.get_static_points())
+            s1_display_points = radar_frame.get_points_for_display(sensor_id=1)
+
         if not radar_frame.is_empty(target_sensor_id=2):
-            s2.update(radar_frame.get_points_for_display(sensor_id=2))
+            s2_static.update(radar_frame.get_points_for_display(sensor_id=2))
+            radar_frame.set_static_points(s2_static.get_static_points())
+            s2_display_points = radar_frame.get_points_for_display(sensor_id=2)
 
-        # set static points
-        radar_frame.set_static_points(s1.get_static_points())
-        radar_frame.set_static_points(s2.get_static_points())
+        # 
+        if len(s1_display_points) == 0:
+            s1_display_points = s1_display_points_prev
+        else:
+            s1_display_points_prev = s1_display_points
+        if len(s2_display_points) == 0:
+            s2_display_points = s2_display_points_prev
+        else:
+            s2_display_points_prev = s2_display_points
 
-        s1_points_for_display = radar_frame.get_points_for_display(sensor_id=1)
-        s2_points_for_display = radar_frame.get_points_for_display(sensor_id=2)
-        print(s1_points_for_display)
-        if len(s1_points_for_display) >= 1:
-            for i, coord in enumerate(s1_points_for_display):
-                print(coord)
+        print(f"data points for display s1:{len(s1_display_points)}, s2:{len(s2_display_points)}, static s1:{len(s1_static.get_static_points())}, s2:{len(s2_static.get_static_points())}")
+        if len(s1_display_points) >= 1:
+            for i, coord in enumerate(s1_display_points):
+                # print(coord)
                 x = int((coord[0] + offsetx) * scalemm2px)  
                 y = int((-coord[1] + offsety) * scalemm2px)   # y axis is flipped 
             
-            # xy modifications from trackbar controls
-            x = int(x * xy_trackbar_scale)
-            y = int(y * xy_trackbar_scale)
-            x += slider_xoffset
-            y += slider_yoffset 
-            if coord[2] == 1:
-                cv2.circle(frame, (x,y), 4, washout(GREEN), -1)
-            else:
-                cv2.circle(frame, (x,y), 4, GREEN, -1)
+                # xy modifications from trackbar controls
+                x = int(x * xy_trackbar_scale)
+                y = int(y * xy_trackbar_scale)
+                x += slider_xoffset
+                y += slider_yoffset 
+                if coord in s1_static.get_static_points():
+                    cv2.circle(frame, (x,y), 4, washout(GREEN), -1)
+                else:
+                    cv2.circle(frame, (x,y), 4, GREEN, -1)
             
-        if len(s2_points_for_display) >= 1:
-            for i, coord in enumerate(s2_points_for_display):
-                print(coord)
+        if len(s2_display_points) >= 1:
+            for i, coord in enumerate(s2_display_points):
+                # print(coord)
                 x = int((coord[0] + offsetx) * scalemm2px)   
                 y = int((-coord[1] + offsety) * scalemm2px)   # y axis is flipped  
                 # xy modifications from trackbar controls
@@ -316,7 +332,7 @@ while True:
                 y = int(y * xy_trackbar_scale)
                 x += slider_xoffset
                 y += slider_yoffset
-                if coord[2] == 1:
+                if coord in s2_static.get_static_points():
                     cv2.circle(frame, (x,y), 4, washout(YELLOW), -1)
                 else:
                     cv2.circle(frame, (x,y), 4, YELLOW, -1)
