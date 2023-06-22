@@ -159,7 +159,6 @@ print(f"Radar is set to be ahead of video by {rad_cam_offset}ms.")
 s1_pts = []
 s2_pts = []
 
-
 # video frame buffer
 frame_prev = None
 video_file = cv_config['Files']['video_file']
@@ -273,6 +272,7 @@ while True:
     frame = cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE)         
     # update height and width after rotation
     height, width = frame.shape[:2]
+    #frame = cv2.resize(frame, (round(width)//2, round(height)//2))   # reduce frame size
 
     if round(rad_cam_offset) < 0:
             # radar to wait for video

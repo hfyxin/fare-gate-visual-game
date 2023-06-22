@@ -32,7 +32,6 @@ class RadarFrame:
         if len(self.sensorid) > 0:
             class_str += f" Sensor id: {set(self.sensorid)}, starting ts: {self.timestamp[0]}, ending ts: {self.timestamp[-1]}"
         return class_str
-
    
     # check if a specified sensor is empty      
     def is_empty(self, target_sensor_id=None) -> bool:  
@@ -58,3 +57,4 @@ class RadarFrame:
                 self.isStatic[i] = 1
             else:
                 self.isStatic[i] = 0
+
