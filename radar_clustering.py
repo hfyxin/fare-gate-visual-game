@@ -1,5 +1,7 @@
+import torch
 from sklearn.cluster import DBSCAN
 import numpy as np
+from utils.general import xyxy2xywh, xywh2xyxy
 
 
 def cluster_bbox(cluster_point_cloud, cluster_label):
@@ -20,6 +22,29 @@ def obj_height(cluster_point_cloud, cluster_label):
     size = z2 - z1
     height = z2
     return size, height
+
+
+def centroid2xywh(centroids, cluster_point_cloud, offsetx, offsety, scalemm2px, slider_xoffset, slider_yoffset,
+                  xy_trackbar_scale):
+    r_bboxes = []
+    for i in enumerate(centroids):
+        x1, y1, x2, y2 = cluster_bbox(cluster_point_cloud, i[0])
+        # convert mm to px
+        x1, y1, x2, y2 = int(x1 + offsetx) * scalemm2px, int(-y1 + offsety) * scalemm2px, int(
+            x2 + offsetx) * scalemm2px, int(-y2 + offsety) * scalemm2px
+        # modify based on trackbar
+        x1, y1, x2, y2 = int(x1 * xy_trackbar_scale) + slider_xoffset, int(
+            y1 * xy_trackbar_scale) + slider_yoffset, int(x2 * xy_trackbar_scale) + slider_xoffset, int(
+            y2 * xy_trackbar_scale) + slider_yoffset
+
+        bboxes = [[x1, y1, x2, y2]]
+        tensor_bbox = torch.Tensor(bboxes)
+        print('TENSOR CORRECT FORMAT FOR XYXY2XYWH')
+        print(tensor_bbox)
+        xywh_bbox = xyxy2xywh(tensor_bbox)
+        r_bboxes.append(torch.Tensor(xywh_bbox))
+
+    return r_bboxes
 
 
 class ClusterProcessor:
